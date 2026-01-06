@@ -21,7 +21,7 @@ With one click, you can export a perfectly formatted **A4 PDF** ready to be atta
 
 ## 🛠️ How to Use
 
-1.  Download the `bug_report_generator.html` file.
+1.  Download the `bug_report_generator.html` file or just visit https://daudaldi.github.io/tools/reportgen.html.
 2.  Open it in any modern web browser (Chrome, Firefox, Edge, etc.).
 3.  Fill in the details of your finding (Title, Severity, Steps to Reproduce, etc.).
 4.  Upload screenshots if needed.
