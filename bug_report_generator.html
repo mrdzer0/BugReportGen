@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bug Bounty Report Generator PRO</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Fonts -->
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
+    <!-- PDF Generation Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            700: '#0369a1',
+                            900: '#0c4a6e',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        /* A4 Paper Dimensions for Preview - Modified for Infinite Height */
+        .a4-page {
+            width: 210mm;
+            min-height: 297mm;
+            height: auto;
+            /* Allow growth */
+            padding: 20mm;
+            margin: 0 auto;
+            background: white;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        .ProseMirror p {
+            margin-bottom: 0.8em;
+        }
+
+        .ProseMirror h1,
+        h2,
+        h3 {
+            margin-top: 1em;
+            margin-bottom: 0.5em;
+            font-weight: 600;
+        }
+
+        .ProseMirror ul {
+            list-style-type: disc;
+            margin-left: 1.5em;
+            margin-bottom: 0.8em;
+        }
+
+        .ProseMirror ol {
+            list-style-type: decimal;
+            margin-left: 1.5em;
+            margin-bottom: 0.8em;
+        }
+
+        .ProseMirror code {
+            background-color: #f1f5f9;
+            padding: 0.2rem 0.4rem;
+            border-radius: 0.25rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.875em;
+        }
+
+        .ProseMirror pre {
+            background-color: #1e293b;
+            color: #f8fafc;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            margin-bottom: 0.8em;
+        }
+
+        .ProseMirror pre code {
+            background-color: transparent;
+            padding: 0;
+            color: inherit;
+        }
+
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+
+            #preview-container,
+            #preview-container * {
+                visibility: visible;
+            }
+
+            #preview-container {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                margin: 0;
+                padding: 0;
+                box-shadow: none;
+            }
+
+            .no-print {
+                display: none;
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-slate-50 text-slate-800 h-screen flex flex-col overflow-hidden">
+
+    <!-- Header -->
+    <header class="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center z-10 shrink-0">
+        <div class="flex items-center gap-3">
+            <div
+                class="w-10 h-10 bg-brand-600 rounded-lg flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-brand-500/30">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
+                    stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.2-2.85.56-4.17M12 18a2 2 0 110-4 2 2 0 010 4z" />
+                </svg>
+            </div>
+            <div>
+                <h1 class="text-xl font-bold text-slate-900 tracking-tight">BugReport<span
+                        class="text-brand-600">Gen</span></h1>
+                <p class="text-xs text-slate-500 font-medium">Professional Bug Bounty Reports</p>
+            </div>
+        </div>
+        <div class="flex gap-3">
+            <button onclick="loadSampleData()"
+                class="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg transition-colors flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                    stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Load Sample
+            </button>
+            <button onclick="downloadPDF()"
+                class="px-5 py-2 text-sm font-medium text-white bg-slate-900 hover:bg-slate-800 rounded-lg shadow-lg shadow-slate-900/20 transition-all flex items-center gap-2 transform active:scale-95">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                    stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Generate PDF Report
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex overflow-hidden">
+
+        <!-- Editor Column -->
+        <div class="w-1/2 overflow-y-auto border-r border-slate-200 bg-white p-8">
+            <div class="max-w-2xl mx-auto space-y-8">
+
+                <!-- Section: Core Info -->
+                <section class="space-y-4">
+                    <h2 class="text-sm uppercase tracking-wider text-slate-500 font-semibold mb-4 border-b pb-2">
+                        Vulnerability Information</h2>
+
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Report Title</label>
+                        <input type="text" id="input-title"
+                            placeholder="e.g. IDOR in User Profile allows full account takeover"
+                            class="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition-all"
+                            oninput="renderReport()">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Severity / CVSS</label>
+                            <input type="text" id="input-cvss" placeholder="e.g. Critical (9.8)"
+                                class="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition-all"
+                                oninput="renderReport()">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Vulnerability Type</label>
+                            <input type="text" id="input-type" placeholder="e.g. IDOR, XSS, SSRF"
+                                class="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition-all"
+                                oninput="renderReport()">
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Section: Details -->
+                <section class="space-y-4">
+                    <h2 class="text-sm uppercase tracking-wider text-slate-500 font-semibold mb-4 border-b pb-2">Context
+                        & Impact</h2>
+
+                    <div class="grid grid-cols-1 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Affected Asset /
+                                Endpoint</label>
+                            <input type="text" id="input-asset" placeholder="e.g. https://api.target.com/v1/user/update"
+                                class="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition-all"
+                                oninput="renderReport()">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Executive Summary</label>
+                        <textarea id="input-summary" rows="3"
+                            placeholder="Briefly explain the vulnerability and its impact in plain business terms..."
+                            class="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition-all"
+                            oninput="renderReport()"></textarea>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Business Impact</label>
+                        <textarea id="input-impact" rows="3"
+                            placeholder="What is the business risk? Data loss, financial loss, reputation damage?"
+                            class="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition-all"
+                            oninput="renderReport()"></textarea>
+                    </div>
+                </section>
+
+                <!-- Section: Technical -->
+                <section class="space-y-4">
+                    <h2 class="text-sm uppercase tracking-wider text-slate-500 font-semibold mb-4 border-b pb-2">
+                        Technical Proof</h2>
+
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Steps to Reproduce</label>
+                        <textarea id="input-steps" rows="6"
+                            placeholder="1. Navigate to...&#10;2. Intercept request...&#10;3. change ID..."
+                            class="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition-all font-mono text-sm"
+                            oninput="renderReport()"></textarea>
+                        <p class="text-xs text-slate-500 mt-1">Supports basic markdown-like list formatting.</p>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Proof of Concept (PoC) / HTTP
+                            Request</label>
+                        <textarea id="input-poc" rows="6"
+                            placeholder="POST /api/v1/users/123 HTTP/1.1&#10;Host: example.com&#10;..."
+                            class="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition-all font-mono text-sm"
+                            oninput="renderReport()"></textarea>
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between items-end mb-1">
+                            <label class="block text-sm font-medium text-slate-700">Evidence / Screenshots</label>
+                            <button onclick="clearImages()"
+                                class="text-xs text-red-600 hover:text-red-700 font-medium hover:underline">Clear
+                                Images</button>
+                        </div>
+                        <input type="file" id="input-images" multiple accept="image/*"
+                            class="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition-all file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100">
+                        <p class="text-xs text-slate-500 mt-1">Upload multiple images. New uploads are appended.</p>
+                    </div>
+                </section>
+
+                <!-- Section: Remediation -->
+                <section class="space-y-4">
+                    <h2 class="text-sm uppercase tracking-wider text-slate-500 font-semibold mb-4 border-b pb-2">
+                        Remediation</h2>
+
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Recommended Fix /
+                            Mitigation</label>
+                        <textarea id="input-fix" rows="4" placeholder="Implement input validation..."
+                            class="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition-all"
+                            oninput="renderReport()"></textarea>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">References</label>
+                        <textarea id="input-refs" rows="2" placeholder="OWASP Top 10 - A01..."
+                            class="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition-all"
+                            oninput="renderReport()"></textarea>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Contact Information</label>
+                        <textarea id="input-contact" rows="2" placeholder="Name, Email, Handle..."
+                            class="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition-all"
+                            oninput="renderReport()"></textarea>
+                    </div>
+                </section>
+
+            </div>
+        </div>
+
+        <!-- Preview Column -->
+        <div id="preview-column" class="w-1/2 bg-slate-100 overflow-y-auto p-8 flex flex-col items-center">
+            <!-- Pages will be dynamically injected here -->
+        </div>
+    </main>
+
+    <script>
+        // Set Today's Date
+        const todayStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+
+        // State to hold images
+        let uploadedFiles = [];
+
+        // Main Render Function
+        function renderReport() {
+            const previewContainer = document.getElementById('preview-column');
+            previewContainer.innerHTML = '';
+
+            const data = {
+                title: document.getElementById('input-title').value,
+                cvss: document.getElementById('input-cvss').value,
+                type: document.getElementById('input-type').value,
+                asset: document.getElementById('input-asset').value,
+                summary: document.getElementById('input-summary').value,
+                impact: document.getElementById('input-impact').value,
+                steps: document.getElementById('input-steps').value,
+                poc: document.getElementById('input-poc').value,
+                fix: document.getElementById('input-fix').value,
+                refs: document.getElementById('input-refs').value,
+                contact: document.getElementById('input-contact').value
+            };
+
+            // Initialize Page 1
+            let pages = [];
+            let currentPage = createPage(1);
+            let currentContentBox = currentPage.querySelector('.content-area');
+            pages.push({ el: currentPage, box: currentContentBox });
+            previewContainer.appendChild(currentPage);
+
+            // Helper to get current page info
+            const getCurrent = () => pages[pages.length - 1];
+            const addNewPage = () => {
+                const newPage = createPage(pages.length + 1);
+                const newBox = newPage.querySelector('.content-area');
+                pages.push({ el: newPage, box: newBox });
+                previewContainer.appendChild(newPage);
+                return { el: newPage, box: newBox };
+            };
+
+            // Helper for Overflow Check
+            const isOverflowing = (box) => box.scrollHeight > box.clientHeight;
+
+            // 1. Header (Always on Page 1)
+            const headerBlock = createHeaderBlock(data.title, todayStr);
+            currentContentBox.appendChild(headerBlock);
+
+            // 2. Meta Table (Always on Page 1)
+            const metaBlock = createMetaBlock(data);
+            currentContentBox.appendChild(metaBlock);
+
+            // 3. Define Blocks
+            const blocks = [
+                { title: "Executive Summary", content: data.summary, type: "text" },
+                { title: "Business Impact", content: data.impact, type: "text" },
+                { title: "Steps to Reproduce", content: data.steps, type: "text" },
+                { title: "Proof of Concept", content: data.poc, type: "code" },
+                { title: "Evidence / Screenshots", content: uploadedFiles, type: "images" },
+                { title: "Recommended Fix", content: data.fix, type: "text", highlight: true },
+                { title: "References", content: data.refs, type: "text" },
+                { title: "Contact Information", content: data.contact, type: "text" }
+            ];
+
+            // 4. Process Blocks with Splitting
+            blocks.forEach(block => {
+                if (block.type === 'images') {
+                    if (!block.content || block.content.length === 0) return;
+                    processImages(block, getCurrent, addNewPage, isOverflowing);
+                } else {
+                    if (!block.content || block.content.trim() === '') return;
+                    processTextBlock(block, getCurrent, addNewPage, isOverflowing);
+                }
+            });
+
+            updatePageNumbers();
+        }
+
+        // --- Block Processors ---
+
+        function processTextBlock(block, getCurrent, addNewPage, isOverflowing) {
+            let { box } = getCurrent();
+
+            // Create Wrapper with Title
+            const wrapper = document.createElement('div');
+            wrapper.className = 'mb-6 block-wrapper';
+
+            const h2 = document.createElement('h2');
+            h2.className = 'text-lg font-bold text-slate-900 border-l-4 border-brand-500 pl-3 mb-2';
+            h2.textContent = block.title;
+            wrapper.appendChild(h2);
+
+            // Content container
+            const contentDiv = document.createElement('div'); // The container for lines
+            contentDiv.className = block.type === 'code'
+                ? 'bg-slate-900 rounded-lg p-4 shadow-sm text-xs font-mono text-slate-300 whitespace-pre-wrap overflow-x-hidden' // overflow-hidden to force wrap/split
+                : `text-sm leading-relaxed text-slate-700 whitespace-pre-wrap ${block.highlight ? 'bg-green-50 p-4 border border-green-100 rounded-lg' : ''}`;
+
+            wrapper.appendChild(contentDiv);
+
+            // Append wrapper to see where we stand
+            box.appendChild(wrapper);
+
+            // Split content into lines/chunks
+            // For code/text, split by newline to preserve formatting roughly
+            const lines = block.content.split('\n');
+
+            // Temporary buffer to build content
+            let currentText = '';
+
+            // Helper to update contentDiv text
+            const setContent = (text) => {
+                if (block.type === 'code') contentDiv.textContent = text;
+                else contentDiv.textContent = text;
+            };
+
+            // Optimization: Try adding all first. If fits, great.
+            setContent(block.content);
+            if (!isOverflowing(box)) {
+                return; // Fits completely
+            }
+
+            // Doesn't fit. We need to split.
+            // Reset
+            setContent('');
+
+            // 1. Check if Header + 1 line fits. If not, move whole block to next page.
+            setContent(lines[0]);
+            if (isOverflowing(box)) {
+                // Orphan header case: Header doesn't even fit with first line.
+                // Move entire start to next page.
+                box.removeChild(wrapper);
+                const newPage = addNewPage();
+                newPage.box.appendChild(wrapper);
+                box = newPage.box; // Update local box reference
+                // Now simple recursive call to fill this new page
+                // Reset content to full
+                setContent(block.content);
+                // Check fit again (unlikely to fail on fresh page unless block > 1 page)
+                if (!isOverflowing(box)) return;
+                // If still fails, we naturally fall through to split loop
+                setContent('');
+            }
+
+            // Loop through lines
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                const prevText = currentText;
+                // Add line
+                currentText += (currentText ? '\n' : '') + line;
+                setContent(currentText);
+
+                // Check overflow
+                if (isOverflowing(box)) {
+                    // Overflow detected!
+
+                    // If i === 0, it means even the FIRST line of the content didn't fit 
+                    // (after we already tried moving the whole block and failed, or we are midway).
+                    // In processTextBlock, we had a check "Header + 1 line".
+                    // If we are here, it means Header+1Line fit, but later lines caused overflow.
+                    // OR, we are in the "Header moved to next page" case, and we are filling.
+
+                    if (i === 0) {
+                        // This shouldn't happen if logical checks above passed, BUT if it does:
+                        // We must accept the line to avoid infinite loop of "move to new page -> overflow -> move".
+
+                        // Move REST to new page.
+                        const remaining = lines.slice(i + 1).join('\n');
+                        if (!remaining) return;
+
+                        const newPage = addNewPage();
+                        const newDiv = document.createElement('div');
+                        newDiv.className = contentDiv.className;
+                        // Hack: Remove margins for continuation?
+                        newDiv.style.marginTop = '0';
+                        newPage.box.appendChild(newDiv);
+
+                        processTextContinuation({ ...block, content: remaining }, newDiv, newPage.box, addNewPage, isOverflowing);
+                        return;
+                    }
+
+                    // Revert to prevText
+                    setContent(prevText);
+
+                    // Create new page
+                    const newPage = addNewPage();
+                    box = newPage.box;
+
+                    // Create continuation block
+                    const newContentDiv = document.createElement('div');
+                    newContentDiv.className = contentDiv.className;
+
+                    box.appendChild(newContentDiv);
+
+                    // Recursive call for remaining lines
+                    const remainingLines = lines.slice(i).join('\n');
+
+                    processTextContinuation({ ...block, content: remainingLines }, newContentDiv, box, addNewPage, isOverflowing);
+                    return;
+                }
+            }
+        }
+
+        function processTextContinuation(block, currentDiv, currentBox, addNewPage, isOverflowing) {
+            const lines = block.content.split('\n');
+            let currentText = '';
+
+            // Start clean
+            currentDiv.textContent = '';
+
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                const prevText = currentText;
+
+                // Add line
+                currentText += (currentText ? '\n' : '') + line;
+                currentDiv.textContent = currentText;
+
+                // Check overflow
+                if (isOverflowing(currentBox)) {
+                    // Critical Check: If this is the FIRST line on a NEW page and it overflows,
+                    // we cannot split it further. We must accept it to avoid infinite loop.
+                    if (i === 0) {
+                        // Accept this line, but stop adding more. Move rest to next page.
+                        // Continue loop? No, because we want to move next lines.
+
+                        // Wait, if i=0 and it overflows, we leave ONLY this line here.
+                        // Then recurse with the REST.
+
+                        // But wait, if we leave it here, we are "done" with this page.
+                        // We need to move i+1 onwards.
+
+                        const remaining = lines.slice(i + 1).join('\n');
+                        if (!remaining) return; // Done
+
+                        const newPage = addNewPage();
+                        const newDiv = document.createElement('div');
+                        newDiv.className = currentDiv.className;
+                        newPage.box.appendChild(newDiv);
+
+                        processTextContinuation({ ...block, content: remaining }, newDiv, newPage.box, addNewPage, isOverflowing);
+                        return;
+                    }
+
+                    // Normal case: We added some lines, now this one broke the camel's back.
+                    // Revert this line.
+                    currentDiv.textContent = prevText;
+
+                    // Move this line and rest to new page
+                    const newPage = addNewPage();
+                    const newDiv = document.createElement('div');
+                    newDiv.className = currentDiv.className;
+                    newPage.box.appendChild(newDiv);
+
+                    const remaining = lines.slice(i).join('\n');
+                    processTextContinuation({ ...block, content: remaining }, newDiv, newPage.box, addNewPage, isOverflowing);
+                    return;
+                }
+            }
+        }
+
+        function processImages(block, getCurrent, addNewPage, isOverflowing) {
+            let { box } = getCurrent();
+
+            // 1. Title
+            const titleEl = document.createElement('h2');
+            titleEl.className = 'text-lg font-bold text-slate-900 border-l-4 border-brand-500 pl-3 mb-2';
+            titleEl.textContent = block.title;
+
+            const wrapper = document.createElement('div');
+            wrapper.className = 'mb-6';
+            wrapper.appendChild(titleEl);
+
+            let currentGrid = document.createElement('div');
+            currentGrid.className = 'grid grid-cols-1 gap-4';
+            wrapper.appendChild(currentGrid);
+
+            box.appendChild(wrapper);
+
+            // Orphan title check
+            if (isOverflowing(box)) {
+                box.removeChild(wrapper);
+                const newPage = addNewPage();
+                box = newPage.box;
+                newPage.box.appendChild(wrapper);
+            }
+
+            // 2. Loop images
+            block.content.forEach(file => {
+                const imgItem = document.createElement('div');
+                imgItem.className = 'bg-slate-100 p-2 rounded-lg border border-slate-200';
+                imgItem.innerHTML = `<img src="${file.dataUrl}" class="w-full h-auto rounded shadow-sm"><p class="text-xs text-slate-500 mt-2 text-center font-mono">${file.name}</p>`;
+
+                currentGrid.appendChild(imgItem);
+
+                if (isOverflowing(box)) {
+                    // Move to new page
+                    currentGrid.removeChild(imgItem);
+
+                    const newPage = addNewPage();
+                    box = newPage.box;
+
+                    // New container
+                    const newWrapper = document.createElement('div');
+                    newWrapper.className = 'mb-6';
+                    currentGrid = document.createElement('div');
+                    currentGrid.className = 'grid grid-cols-1 gap-4';
+                    newWrapper.appendChild(currentGrid);
+                    box.appendChild(newWrapper);
+
+                    currentGrid.appendChild(imgItem);
+                }
+            });
+        }
+
+        // --- Helper Functions ---
+
+        function createPage(pageNum) {
+            const page = document.createElement('div');
+            page.className = 'a4-page relative text-slate-900 mb-8 mx-auto shadow-lg bg-white'; // Removed overflow-hidden here
+            page.style.width = '210mm';
+            page.style.height = '297mm'; // Fixed A4 height
+            page.style.padding = '20mm';
+            page.style.display = 'flex'; // Use flexbox for layout
+            page.style.flexDirection = 'column';
+
+            page.innerHTML = `
+                <div class="content-area flex-grow min-h-0 overflow-hidden" style="padding-bottom: 20mm;">
+                    <!-- Content injected here -->
+                </div>
+                <!-- Footer (Positioned Absolutely) -->
+                <div class="absolute bottom-8 left-8 right-8 border-t border-slate-200 pt-4 flex justify-between items-center text-xs text-slate-400 shrink-0">
+                    <div>Created with BugReportGen</div>
+                    <div class="page-number">Page ${pageNum}</div>
+                </div>
+            `;
+            return page;
+        }
+
+        function createHeaderBlock(title, date) {
+            const div = document.createElement('div');
+            div.className = 'border-b-4 border-slate-900 pb-6 mb-8 flex justify-between items-start shrink-0';
+            div.innerHTML = `
+                <div class="w-3/4">
+                    <div class="text-xs uppercase tracking-[0.2em] font-bold text-slate-500 mb-1">Security Audit Report</div>
+                    <h1 class="text-3xl font-bold text-slate-900 leading-tight">${title || 'Untitled Report'}</h1>
+                </div>
+                <div class="text-right">
+                    <div class="inline-block px-3 py-1 bg-slate-100 rounded text-xs font-mono text-slate-600 mb-2">CONFIDENTIAL</div>
+                    <div class="text-sm text-slate-500">${date}</div>
+                </div>
+            `;
+            return div;
+        }
+
+        function createMetaBlock(data) {
+            const div = document.createElement('div');
+            div.className = 'grid grid-cols-2 gap-x-8 gap-y-6 mb-8 bg-slate-50 p-6 rounded-lg border border-slate-100 shrink-0';
+
+            // CVSS Logic
+            let cvssHtml = '<span class="text-slate-300 italic">Not specified</span>';
+            let textClass = 'text-slate-600'; // Default text color
+            const val = data.cvss || '';
+            const scoreMatch = val.match(/(\d+(\.\d+)?)/);
+            let colorClass = 'bg-slate-500';
+            if (scoreMatch) {
+                const score = parseFloat(scoreMatch[0]);
+                if (score >= 9.0) { colorClass = 'bg-red-600'; textClass = 'text-red-600'; }
+                else if (score >= 7.0) { colorClass = 'bg-orange-500'; textClass = 'text-orange-600'; }
+                else if (score >= 4.0) { colorClass = 'bg-yellow-500'; textClass = 'text-yellow-600'; }
+                else { colorClass = 'bg-green-500'; textClass = 'text-green-600'; }
+                cvssHtml = `<span class="w-2 h-2 rounded-full ${colorClass} inline-block"></span><span>${val}</span>`;
+            }
+
+            div.innerHTML = `
+                <div>
+                    <div class="text-xs uppercase tracking-wide text-slate-500 font-semibold mb-1">Severity</div>
+                    <div class="text-lg font-bold ${textClass} flex items-center gap-2">${cvssHtml}</div>
+                </div>
+                <div>
+                    <div class="text-xs uppercase tracking-wide text-slate-500 font-semibold mb-1">Vulnerability Type</div>
+                    <div class="text-lg font-medium text-slate-800">${data.type || '-'}</div>
+                </div>
+                <div class="col-span-2">
+                    <div class="text-xs uppercase tracking-wide text-slate-500 font-semibold mb-1">Affected Asset</div>
+                    <div class="font-mono text-sm text-brand-700 bg-brand-50 px-2 py-1 rounded inline-block break-all">${data.asset || '-'}</div>
+                </div>
+            `;
+            return div;
+        }
+
+        function createSectionBlock(block) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'mb-6'; // Vertical spacing between blocks
+
+            // Header
+            const h2 = document.createElement('h2');
+            h2.className = 'text-lg font-bold text-slate-900 border-l-4 border-brand-500 pl-3 mb-2';
+            h2.textContent = block.title;
+            wrapper.appendChild(h2);
+
+            // Content
+            if (block.type === 'text') {
+                const div = document.createElement('div');
+                div.className = `text-sm leading-relaxed text-slate-700 whitespace-pre-wrap ${block.highlight ? 'bg-green-50 p-4 border border-green-100 rounded-lg' : ''}`;
+                div.textContent = block.content;
+                wrapper.appendChild(div);
+            }
+            else if (block.type === 'code') {
+                const pre = document.createElement('div');
+                pre.className = 'bg-slate-900 rounded-lg p-4 overflow-hidden shadow-sm';
+                pre.innerHTML = `
+                             <div class="flex gap-1.5 mb-3 opacity-50">
+                                 <div class="w-2.5 h-2.5 rounded-full bg-slate-500"></div>
+                                 <div class="w-2.5 h-2.5 rounded-full bg-slate-500"></div>
+                                 <div class="w-2.5 h-2.5 rounded-full bg-slate-500"></div>
+                             </div>
+                            <pre class="text-xs font-mono text-slate-300 whitespace-pre-wrap overflow-x-auto">${block.content}</pre>
+                `;
+                wrapper.appendChild(pre);
+            }
+            else if (block.type === 'images') {
+                const grid = document.createElement('div');
+                grid.className = 'grid grid-cols-1 gap-4';
+
+                block.content.forEach(file => {
+                    const imgDiv = document.createElement('div');
+                    imgDiv.className = 'bg-slate-100 p-2 rounded-lg border border-slate-200 break-inside-avoid';
+
+                    const img = document.createElement('img');
+                    img.src = file.dataUrl; // Assumes we pre-processed
+                    img.className = 'w-full h-auto rounded shadow-sm';
+
+                    const caption = document.createElement('p');
+                    caption.textContent = file.name;
+                    caption.className = 'text-xs text-slate-500 mt-2 text-center font-mono';
+
+                    imgDiv.appendChild(img);
+                    imgDiv.appendChild(caption);
+                    grid.appendChild(imgDiv);
+                });
+                wrapper.appendChild(grid);
+            }
+
+            return wrapper;
+        }
+
+        function updatePageNumbers() {
+            const pages = document.querySelectorAll('.a4-page');
+            const total = pages.length;
+            pages.forEach((page, index) => {
+                const el = page.querySelector('.page-number');
+                if (el) el.textContent = `Page ${index + 1} of ${total}`;
+            });
+        }
+
+        // --- Event Listeners & Init ---
+
+        // Listen for all inputs to trigger re-render
+        const inputs = document.querySelectorAll('input:not([type="file"]), textarea');
+        inputs.forEach(input => {
+            input.addEventListener('input', renderReport);
+        });
+
+        // Image Handling
+        document.getElementById('input-images').addEventListener('change', function (e) {
+            const files = Array.from(e.target.files);
+            if (files.length === 0) return;
+
+            // Convert to DataURL immediately so render is sync
+            let processed = 0;
+            files.forEach(file => {
+                const reader = new FileReader();
+                reader.onload = function (evt) {
+                    uploadedFiles.push({
+                        name: file.name,
+                        dataUrl: evt.target.result
+                    });
+                    processed++;
+                    if (processed === files.length) {
+                        e.target.value = ''; // Reset input
+                        renderReport();
+                    }
+                };
+                reader.readAsDataURL(file);
+            });
+        });
+
+        function clearImages() {
+            uploadedFiles = [];
+            renderReport();
+        }
+
+        function loadSampleData() {
+            try {
+                document.getElementById('input-title').value = 'Sensitive Information Disclosure via IDOR';
+                document.getElementById('input-cvss').value = 'Critical (9.2)';
+                document.getElementById('input-type').value = 'Insecure Direct Object Reference (IDOR)';
+                document.getElementById('input-asset').value = 'https://api.vulnerable-bank.com/v1/user/101/financials';
+                document.getElementById('input-summary').value = 'The application allows authenticated users to access financial records of other users by manipulating the user ID parameter in the API endpoint. No authorization checks are performed on the requested resource ID.';
+                document.getElementById('input-impact').value = 'This vulnerability allows a malicious actor to dump the entire database of user financial records, leading to severe privacy violation, regulatory fines (GDPR/CCPA), and reputational damage.';
+
+                document.getElementById('input-steps').value =
+                    '1. Login to the application as Attacker (User ID: 100).\n' +
+                    '2. Navigate to the "My Finances" section.\n' +
+                    '3. Capture the HTTP request using Burp Suite.\n' +
+                    '4. Observe the GET /v1/user/100/financials request.\n' +
+                    '5. Change the ID from 100 to 101 (Victim ID).\n' +
+                    '6. Send the request.\n' +
+                    '7. Observe that the Victim\'s financial data is returned in the response.';
+
+                document.getElementById('input-poc').value =
+                    'GET /v1/user/101/financials HTTP/1.1\n' +
+                    'Host: api.vulnerable-bank.com\n' +
+                    'Authorization: Bearer eyJhbGciOiJIUz...\n' +
+                    'Content-Type: application/json\n\n' +
+                    '// Response:\n' +
+                    'HTTP/1.1 200 OK\n' +
+                    '{\n' +
+                    '  "id": 101,\n' +
+                    '  "balance": 50000,\n' +
+                    '  "cc_last4": "4242"\n' +
+                    '}';
+
+                document.getElementById('input-fix').value = 'Implement strict access controls by verifying that the authenticated user is authorized to access the requested resource ID. Use an indirect reference map or session-based object lookups instead of direct database IDs.';
+                document.getElementById('input-refs').value = 'https://owasp.org/www-project-top-ten/2021/A01_2021-Broken_Access_Control/\nhttps://cheatsheetseries.owasp.org/cheatsheets/Insecure_Direct_Object_References_Prevention_Cheat_Sheet.html';
+                document.getElementById('input-contact').value = 'I am available to provide additional information, assist with verification, or discuss remediation strategies. I am committed to working with your team and will not disclose this vulnerability publicly until you have had sufficient time to address it.\n\nResearcher: Daudaldi\nEmail: me@daudaldi.my.id\nProfile: me.daudaldi.my.id';
+                // Trigger render
+                renderReport();
+            } catch (e) {
+                alert("Error loading sample: " + e.message);
+                console.error(e);
+            }
+        }
+
+        async function downloadPDF() {
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF('p', 'mm', 'a4');
+
+            // Get all page elements
+            const pages = document.querySelectorAll('#preview-column .a4-page');
+
+            const btn = document.querySelector('button[onclick="downloadPDF()"]');
+            const originalText = btn.innerHTML;
+            btn.innerText = 'Generating...';
+            btn.disabled = true;
+
+            try {
+                for (let i = 0; i < pages.length; i++) {
+                    const page = pages[i];
+
+                    // Capture Page
+                    const canvas = await html2canvas(page, {
+                        scale: 2,
+                        useCORS: true,
+                        logging: false
+                    });
+
+                    const imgData = canvas.toDataURL('image/jpeg', 0.95);
+                    const pdfWidth = pdf.internal.pageSize.getWidth();
+                    const pdfHeight = pdf.internal.pageSize.getHeight(); // A4 fixed
+
+                    if (i > 0) pdf.addPage();
+                    pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+                }
+
+                pdf.save('bug-bounty-report.pdf');
+
+            } catch (err) {
+                alert('Error: ' + err.message);
+                console.error(err);
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        // Init
+        // We need to wait for DOM? Already at end of body.
+        renderReport();
+    </script>
+</body>
+
+</html>
+```
